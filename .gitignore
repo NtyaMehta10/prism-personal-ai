@@ -1,0 +1,14 @@
+# Never commit credentials, backups or runtime data
+.env
+.env.*
+*.pem
+*.key
+*backup*.json
+# Local development and inspection evidence
+__pycache__/
+.venv/
+node_modules/
+test_e2e.py
+test-results.json
+*.png
+*.log
