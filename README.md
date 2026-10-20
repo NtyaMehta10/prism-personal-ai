@@ -5,7 +5,10 @@ A personal, bring-your-own-key AI workspace with a responsive frosted-glass inte
 ## What works
 
 - Multiple saved provider/key/model connections, including multiple keys for the same provider.
-- Chat history, streaming OpenAI-compatible replies, explicit stop/retry, and per-conversation model/skill selection.
+- Searchable chat history, pinning and renaming, streaming OpenAI-compatible replies, explicit stop/retry, and per-conversation model/skill selection.
+- Conversation branches that preserve the original, including edit-as-a-new-branch drafts.
+- Keyboard quick switch (Ctrl/Cmd+K) for conversations and workspace actions.
+- Safe Markdown-style replies with fenced code and copy-code controls; raw HTML stays inert.
 - OpenAI Chat Completions, OpenRouter, Google Gemini `generateContent`, Anthropic Messages, and HTTPS OpenAI-compatible endpoints.
 - Editable memories that can be paused or disabled, personal context and response preferences.
 - User-created skills: reusable model instructions, not executable tools.

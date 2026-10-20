@@ -12,3 +12,9 @@ test_e2e.py
 test-results.json
 *.png
 *.log
+
+# Local redesign tooling and evidence
+rebuild.py
+test_*.py
+*-verification.json
+*test-results.json
