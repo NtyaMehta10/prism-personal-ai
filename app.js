@@ -1,6 +1,6 @@
 import {STORAGE_KEY,deriveKey,encrypt,decrypt,validateEnvelope} from './vault.js';
-import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-free-1';
-import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-free-1';
+import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-models-2';
+import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-models-2';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], uid=()=>crypto.randomUUID();
 let data=null,key=null,salt=null,activeId='',view='chat',busy=false,controller=null,epoch=0,lastActivity=Date.now(),saveQueue=Promise.resolve(),toastTimer,editorSave;
 const fresh=()=>({version:1,connections:[],chats:[],memories:[],skills:[],personality:{name:'',about:'',style:''},preferences:{memoryEnabled:true,readAloud:false,temperature:.7,connectionId:'',skillId:''}});
@@ -110,10 +110,12 @@ function quickResults(){if(!data)return;const q=$('#quick-query').value.trim().t
 event('#quick-open','click',quickOpen);event('#quick-query','input',quickResults);event('#close-quick','click',()=>$('#quick-dialog').close());
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&data){e.preventDefault();if($('#editor').open||$('#confirm-dialog').open)return;if($('#quick-dialog').open)$('#quick-dialog').close();if($('#free-dialog').open)$('#free-dialog').close();else quickOpen();}});
 
-async function activateCloudflare(){
+async function activateCloudflare(modelId=PROVIDERS.cloudflare.placeholder){
+  if(typeof modelId!=='string')modelId=PROVIDERS.cloudflare.placeholder;
+  const model=FREE_PROVIDERS.cloudflare.models.find(m=>m.id===modelId);if(!model)return;
   if(!data||busy)return;
-  let connection=data.connections.find(c=>c.provider==='cloudflare'&&c.base===PROVIDERS.cloudflare.base&&c.model===PROVIDERS.cloudflare.placeholder);
-  if(!connection){connection={id:uid(),label:'Llama 3.2 3B · Cloudflare',provider:'cloudflare',base:PROVIDERS.cloudflare.base,model:PROVIDERS.cloudflare.placeholder,key:''};data.connections.push(connection);}
+  let connection=data.connections.find(c=>c.provider==='cloudflare'&&c.base===PROVIDERS.cloudflare.base&&c.model===model.id);
+  if(!connection){connection={id:uid(),label:model.name,provider:'cloudflare',base:PROVIDERS.cloudflare.base,model:model.id,key:''};data.connections.push(connection);}
   data.preferences.connectionId=connection.id;if(current())current().connectionId=connection.id;
   await persist();setView('chat');$('#prompt').focus();toast('Cloudflare selected — no API key needed');
 }
@@ -135,7 +137,7 @@ function renderFreeBrowser(){
   list.replaceChildren();if(freeLoading||freeError)return;
   const q=$('#free-query').value.trim().toLowerCase(),models=freeModels.filter(m=>(m.name+' '+m.id).toLowerCase().includes(q));
   if(!models.length){list.append(el('p','empty-state',q?'No models match that search.':'No free text models are currently listed. Try refreshing later.'));return;}
-  for(const model of models){const row=el('article','free-model-row'),text=el('div','free-model-text');text.append(el('h3','',model.name),el('small','model-id',model.id));if(model.context)text.append(el('small','',Intl.NumberFormat().format(model.context)+' context tokens'));const button=el('button','secondary',id==='cloudflare'?'Use model':'Connect');button.setAttribute('aria-label',(id==='cloudflare'?'Use ':'Connect ')+model.name);bind(button,()=>{if(!data)return;$('#free-dialog').close();if(id==='cloudflare'){activateCloudflare();return;}openConnectionEditor({label:model.name,provider:id,base:PROVIDERS[id].base,model:model.id,...(id==='openrouter'?{freeOnly:true}:{freeTier:true})});});row.append(text,button);list.append(row);}
+  for(const model of models){const row=el('article','free-model-row'),text=el('div','free-model-text');text.append(el('h3','',model.name),el('small','model-id',model.id));if(model.use)text.append(el('small','',model.use));if(model.context)text.append(el('small','',Intl.NumberFormat().format(model.context)+' context tokens'));const button=el('button','secondary',id==='cloudflare'?'Use model':'Connect');button.setAttribute('aria-label',(id==='cloudflare'?'Use ':'Connect ')+model.name);bind(button,()=>{if(!data)return;$('#free-dialog').close();if(id==='cloudflare'){activateCloudflare(model.id);return;}openConnectionEditor({label:model.name,provider:id,base:PROVIDERS[id].base,model:model.id,...(id==='openrouter'?{freeOnly:true}:{freeTier:true})});});row.append(text,button);list.append(row);}
 }
 async function loadFreeBrowser(){
   const id=$('#free-provider').value,request=++freeRequest;freeError='';freeModels=[];freeLoading=id==='openrouter';renderFreeBrowser();

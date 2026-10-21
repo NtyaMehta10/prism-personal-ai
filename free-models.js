@@ -3,9 +3,9 @@ export const FREE_PROVIDERS = {
   cloudflare:{
     label:'Cloudflare · no API key',
     termsUrl:'https://developers.cloudflare.com/workers-ai/platform/pricing/',
-    note:'Llama 3.2 3B · no key required. Shared account allowance: 10,000 neurons/day across Workers AI; approximately four requests/minute per IP and shared pool (per Cloudflare location). 512-token replies. Capacity is limited; no paid fallback.',
+    note:'Four Cloudflare models · no key required. Shared account allowance: 10,000 neurons/day across Workers AI; approximately four requests/minute per IP and shared pool (per Cloudflare location). 512-token replies. Larger models consume more of the same allowance; reasoning may use part of the reply budget. Capacity is limited; no paid fallback.',
     setup:'No API key or provider signup needed. Sending sends your conversation, enabled memories, personalization and skill through Prism’s Cloudflare Worker to Workers AI. Your vault stays local; requests are processed by Cloudflare. Shared free capacity may run out.',
-    models:[{id:'@cf/meta/llama-3.2-3b-instruct',name:'Llama 3.2 3B · Cloudflare'}]
+    models:[{"id": "@cf/meta/llama-3.2-3b-instruct", "name": "Llama 3.2 3B \u00b7 Cloudflare", "use": "Everyday chat \u00b7 default"}, {"id": "@cf/meta/llama-3.2-1b-instruct", "name": "Llama 3.2 1B \u00b7 Cloudflare", "use": "Lightweight chat and short summaries"}, {"id": "@cf/qwen/qwen2.5-coder-32b-instruct", "name": "Qwen2.5 Coder 32B \u00b7 Cloudflare", "use": "Coding help \u00b7 uses more shared allowance"}, {"id": "@cf/qwen/qwen3-30b-a3b-fp8", "name": "Qwen3 30B A3B \u00b7 Cloudflare", "use": "General questions and reasoning \u00b7 bounded replies"}]
   },
   openrouter: {
     label: 'OpenRouter', keyUrl: 'https://openrouter.ai/settings/keys',

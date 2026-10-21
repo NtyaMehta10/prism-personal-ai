@@ -1,5 +1,5 @@
 const ORIGIN = 'https://ntyamehta10.github.io';
-const MODEL = '@cf/meta/llama-3.2-3b-instruct';
+const MODELS = new Set(["@cf/meta/llama-3.2-3b-instruct", "@cf/meta/llama-3.2-1b-instruct", "@cf/qwen/qwen2.5-coder-32b-instruct", "@cf/qwen/qwen3-30b-a3b-fp8"]);
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
@@ -23,7 +23,7 @@ export default {
       if (new TextEncoder().encode(raw).length > 24000) return error('Context is too long. Start a new chat or shorten your memories.',413);
       let input;
       try {input=JSON.parse(raw);} catch {return error('Invalid JSON.',400);}
-      if (input.model !== MODEL) return error('This free endpoint supports Llama 3.2 3B only.',400);
+      if (!MODELS.has(input.model)) return error('Choose an available Cloudflare model in Prism.',400);
       if (!Array.isArray(input.messages) || input.messages.length < 1 || input.messages.length > 40) return error('Use one to forty messages.',400);
       const messages = [];
       let chars=0;
@@ -36,9 +36,10 @@ export default {
       if (!messages.some(m=>m.role==='user')) return error('A user message is required.',400);
       const poolLimit = await env.PRISM_LIMITER.limit({key:'prism-shared-pool'});
       if (!poolLimit.success) return error('The shared free AI is busy. Try again in a minute.',429,{'Retry-After':'60'});
-      const result = await env.AI.run(MODEL,{messages,max_tokens:512,temperature:Math.min(1,Math.max(0,Number(input.temperature)||0.7)),stream:false});
-      if (typeof result.response !== 'string' || !result.response) return error('The free model returned no text.',502);
-      return json({id:'prism-'+crypto.randomUUID(),object:'chat.completion',created:Math.floor(Date.now()/1000),model:MODEL,choices:[{index:0,message:{role:'assistant',content:result.response},finish_reason:'stop'}]});
+      const result = await env.AI.run(input.model,{messages,max_tokens:512,temperature:Math.min(1,Math.max(0,Number(input.temperature)||0.7)),stream:false});
+      const text = typeof result.response === 'string' ? result.response : result.choices?.[0]?.message?.content;
+      if (typeof text !== 'string' || !text.trim()) return error('This model returned no final text within the reply limit. Try a shorter question or another Cloudflare model.',502);
+      return json({id:'prism-'+crypto.randomUUID(),object:'chat.completion',created:Math.floor(Date.now()/1000),model:input.model,choices:[{index:0,message:{role:'assistant',content:text},finish_reason:result.choices?.[0]?.finish_reason || ((result.usage?.completion_tokens || 0)>=512?'length':'stop')}]});
     } catch {
       return error('Cloudflare free AI is unavailable or its daily quota is exhausted. No paid fallback is used. Try later.',503);
     }
