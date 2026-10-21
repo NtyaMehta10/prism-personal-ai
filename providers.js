@@ -1,4 +1,4 @@
-import {verifyFreeConnection,FREE_PROVIDERS} from './free-models.js?v=project-browser-1';
+import {verifyFreeConnection,FREE_PROVIDERS} from './free-models.js?v=project-browser-2';
 export const PROVIDERS = {
   cloudflare:{label:'Cloudflare · no key',base:'https://prism-free-ai.aethonlabs.workers.dev/v1',placeholder:'@cf/meta/llama-3.2-3b-instruct',format:'openai',keyless:true},
   openrouter:{label:'OpenRouter',base:'https://openrouter.ai/api/v1',placeholder:'provider/model-name',format:'openai'},

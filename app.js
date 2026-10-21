@@ -1,9 +1,9 @@
-import {ProjectBrowser} from './agent/project-browser.js?v=project-browser-1';
-import {runHarness,BUILTIN_SKILLS,parseAction} from './agent/harness.js?v=project-browser-1';
-import {Workspace,zipFiles} from './agent/workspace.js?v=project-browser-1';
+import {ProjectBrowser} from './agent/project-browser.js?v=project-browser-2';
+import {runHarness,BUILTIN_SKILLS,parseAction} from './agent/harness.js?v=project-browser-2';
+import {Workspace,zipFiles} from './agent/workspace.js?v=project-browser-2';
 import {STORAGE_KEY,deriveKey,encrypt,decrypt,validateEnvelope} from './vault.js';
-import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=project-browser-1';
-import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=project-browser-1';
+import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=project-browser-2';
+import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=project-browser-2';
 const desktopOnly=()=>!(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1));
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], uid=()=>crypto.randomUUID();
 let data=null,key=null,salt=null,activeId='',view='chat',busy=false,controller=null,epoch=0,lastActivity=Date.now(),saveQueue=Promise.resolve(),toastTimer,editorSave;

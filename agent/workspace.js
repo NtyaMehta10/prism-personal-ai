@@ -1,5 +1,5 @@
-import {safePath} from './harness.js?v=project-browser-1';
-import {browserTest} from './browser-test.js?v=project-browser-1';
+import {safePath} from './harness.js?v=project-browser-2';
+import {browserTest} from './browser-test.js?v=project-browser-2';
 export class Workspace{
  constructor(project,save){this.project=project;this.save=save;this.mode='Browser virtual workspace: create files, built-in JavaScript runner, node file.js / node --test test.js as a browser subset, CommonJS modules, read-only virtual fs, HTML preview and downloadable archive. No native shell, Python or installs.';this.runner=null;this.handle=null;}
  async attach(handle){this.handle=handle;this.mode='Browser selected folder '+handle.name+': read/write text files and sandbox JavaScript tests. Native commands unavailable without runner.';this.project.files=await this.snapshot();await this.save();}
