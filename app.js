@@ -1,5 +1,5 @@
-import {runHarness,BUILTIN_SKILLS} from './agent/harness.js';
-import {Workspace,zipFiles} from './agent/workspace.js';
+import {runHarness,BUILTIN_SKILLS,parseAction} from './agent/harness.js?v=conversation-3';
+import {Workspace,zipFiles} from './agent/workspace.js?v=conversation-3';
 import {STORAGE_KEY,deriveKey,encrypt,decrypt,validateEnvelope} from './vault.js';
 import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-models-3';
 import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-models-3';
@@ -62,7 +62,7 @@ function clearEditor(){$('#editor-fields').replaceChildren();editorSave=null;}
 event('#editor-form','submit',async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;try{await editorSave(new FormData(e.currentTarget));$('#editor').close();}catch(error){errorAt('#editor-error',error);}finally{button.disabled=false;}});$('#editor').addEventListener('close',clearEditor);event('#close-editor','click',()=>$('#editor').close());event('#cancel-editor','click',()=>$('#editor').close());
 function fillPersonality(){const p=data.personality,pref=data.preferences;$('#your-name').value=p.name;$('#about-you').value=p.about;$('#response-style').value=p.style;$('#temperature').value=pref.temperature;$('#temperature-output').textContent=pref.temperature;$('#read-aloud').checked=pref.readAloud;}
 async function send(){return runAgentGoal();}
-async function lock(){if(!key)return;disconnectAgent();epoch++;controller?.abort();controller=null;busy=false;if('speechSynthesis'in window)speechSynthesis.cancel();recognition?.stop();try{await persist();await saveQueue;}catch(error){toast('Could not save the latest changes. Keep this tab open and free some browser storage.');return;}key=null;data=null;salt=null;activeId='';$('#app').hidden=true;$('#gate').hidden=false;$('#messages').replaceChildren();$('#history').replaceChildren();$('#search-chats').value='';$('#quick-query').value='';$('#quick-results').replaceChildren();if($('#quick-dialog').open)$('#quick-dialog').close();if($('#free-dialog').open)$('#free-dialog').close();$('#memory-list').replaceChildren();$('#skill-list').replaceChildren();$('#connection-list').replaceChildren();$('#prompt').value='';$('#passphrase').value='';$('#confirm-passphrase').value='';$('#your-name').value='';$('#about-you').value='';$('#response-style').value='';$('#memory-text').value='';$('#active-model').replaceChildren();$('#pin-chat').disabled=true;$('#rename-chat').disabled=true;$('#active-skill').replaceChildren();$('#context-label').textContent='';$('#connection-hint').textContent='';$('#chat-error').replaceChildren();$('#chat-error').hidden=true;if($('#editor').open)$('#editor').close();gate();$('#passphrase').focus();}
+async function lock(){if(!key)return;disconnectAgent();epoch++;controller?.abort();controller=null;busy=false;if('speechSynthesis'in window)speechSynthesis.cancel();recognition?.stop();try{await persist();await saveQueue;}catch(error){toast('Could not save the latest changes. Keep this tab open and free some browser storage.');return;}key=null;data=null;salt=null;activeId='';$('#app').hidden=true;$('#gate').hidden=false;$('#messages').replaceChildren();$('#agent-log').replaceChildren();$('#file-source').value='';$('#file-view').hidden=true;for(const d of ['#project-files-dialog','#preview-dialog','#workspace-dialog'])if($(d).open)$(d).close();$('#web-preview').src='about:blank';$('#history').replaceChildren();$('#search-chats').value='';$('#quick-query').value='';$('#quick-results').replaceChildren();if($('#quick-dialog').open)$('#quick-dialog').close();if($('#free-dialog').open)$('#free-dialog').close();$('#memory-list').replaceChildren();$('#skill-list').replaceChildren();$('#connection-list').replaceChildren();$('#prompt').value='';$('#passphrase').value='';$('#confirm-passphrase').value='';$('#your-name').value='';$('#about-you').value='';$('#response-style').value='';$('#memory-text').value='';$('#active-model').replaceChildren();$('#pin-chat').disabled=true;$('#rename-chat').disabled=true;$('#active-skill').replaceChildren();$('#context-label').textContent='';$('#connection-hint').textContent='';$('#chat-error').replaceChildren();$('#chat-error').hidden=true;if($('#editor').open)$('#editor').close();gate();$('#passphrase').focus();}
 function download(filename,content,type='application/json'){const url=URL.createObjectURL(new Blob([content],{type})),a=el('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 async function restore(file){if(!file)return;if(file.size>20000000)throw new Error('This backup is too large.');const envelope=validateEnvelope(JSON.parse(await file.text()));if(!await confirmDelete('Replace this device’s vault?','The current encrypted vault on this device will be replaced by this backup. Keep a backup of the current one first. You will need the restored vault’s original passphrase.','Replace vault'))return;
   epoch++;controller?.abort();recognition?.stop();if('speechSynthesis'in window)speechSynthesis.cancel();await saveQueue.catch(()=>{});localStorage.setItem(STORAGE_KEY,JSON.stringify(envelope));location.reload();}
@@ -143,36 +143,72 @@ $('#free-dialog').addEventListener('close',()=>{freeRequest++;freeModels=[];free
 
 // Prism Agent Studio. Project files and run receipts stay in the existing encrypted vault.
 let agentSpace=null,spaceId='',selectedFile='';const modelDispatches=[];
-async function agentGenerate(connection,system,messages,signal){if(connection.provider==='cloudflare'){if(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){$('#agent-state').textContent='Waiting for free rate limit';}while(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){const delay=61050-(Date.now()-modelDispatches.filter(t=>Date.now()-t<61000)[0]);await new Promise((resolve,reject)=>{const onAbort=()=>{clearTimeout(timer);reject(new DOMException('Stopped','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',onAbort);resolve();},Math.max(10,delay));signal.addEventListener('abort',onAbort,{once:true});});}if(signal.aborted)throw new DOMException('Stopped','AbortError');modelDispatches.push(Date.now());}return requestReply(connection,system,messages,{signal,temperature:.2,onChunk:()=>{}});}
+async function agentGenerate(connection,system,messages,signal){if(connection.provider==='cloudflare'){if(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){$('#agent-state').textContent='Waiting for free rate limit';$('#agent-typing').textContent='Waiting briefly for the shared free-model rate limit. You can stop this run.';}while(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){const delay=61050-(Date.now()-modelDispatches.filter(t=>Date.now()-t<61000)[0]);await new Promise((resolve,reject)=>{const onAbort=()=>{clearTimeout(timer);reject(new DOMException('Stopped','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',onAbort);resolve();},Math.max(10,delay));signal.addEventListener('abort',onAbort,{once:true});});}if(signal.aborted)throw new DOMException('Stopped','AbortError');while(modelDispatches.length&&Date.now()-modelDispatches[0]>=61000)modelDispatches.shift();modelDispatches.push(Date.now());}return requestReply(connection,system,messages,{signal,temperature:.2,onChunk:()=>{}});}
 function disconnectAgent(){if(agentSpace?.runner)agentSpace.remote('/cancel',{}).catch(()=>{});agentSpace=null;spaceId='';selectedFile='';$('#agent-files')?.replaceChildren();if($('#file-source'))$('#file-source').value='';}
-function ensureProject(){let c=current();if(!c){c={id:uid(),title:'Untitled build',messages:[],connectionId:data.preferences.connectionId||'',skillId:data.preferences.skillId||'build',updatedAt:Date.now()};data.chats.push(c);activeId=c.id;}c.project||={files:{},events:[],runs:[]};return c;}
+function ensureProject(){let c=current();if(!c){c={id:uid(),title:'Untitled build',messages:[],connectionId:data.preferences.connectionId||'',skillId:data.preferences.skillId||'build',updatedAt:Date.now()};data.chats.push(c);activeId=c.id;}c.project||={};c.project.files||={};c.project.events||=[];c.project.runs||=[];c.messages||=[];return c;}
 function workspaceFor(c){if(spaceId!==c.id||!agentSpace){agentSpace=new Workspace(c.project,persist);spaceId=c.id;}return agentSpace;}
+function conversationItems(c){
+ const events=c?.project?.events||[],items=[];
+ for(const m of c?.messages||[]){
+  // Keep pre-agent chat history as well as new messages. Final agent summaries already have a result event.
+  if(m.role==='assistant'&&(m.agentRunId||events.some(e=>e.type==='phase'&&['Delivered','Blocked','Stopped','Paused'].includes(e.phase)&&e.message===m.content&&Math.abs((e.time||0)-(m.createdAt||0))<3000)))continue;
+  items.push({type:m.role==='user'?'user':'note',message:m.content,time:m.createdAt||0});
+ }
+ for(const e of events){
+  if(e.type==='budget'||e.type==='agent')continue;
+  if(e.type==='note'&&e.message?.startsWith('Goal: '))continue;
+  if(e.type==='phase'&&!['Delivered','Blocked','Stopped','Paused','Parallel review'].includes(e.phase))continue;
+  items.push(e);
+ }
+ return items.sort((a,b)=>(a.time||0)-(b.time||0));
+}
+function refreshProjectFiles(){const project=current()?.project,list=$('#agent-files');list.replaceChildren();for(const path of Object.keys(project?.files||{}).sort()){const b=el('button','agent-file',path);bind(b,()=>openProjectFile(path));list.append(b);}$('#file-total').textContent=Object.keys(project?.files||{}).length+' files';}
+function openProjectFile(path){const project=current()?.project;if(project?.files?.[path]===undefined){toast('This file is no longer in the current workspace.');return;}if($('#project-files-dialog').open)$('#project-files-dialog').close();selectedFile=path;$('#file-source').value=project.files[path];$('#file-name').textContent=path;$('#file-view').hidden=false;}
 function renderAgent(){if(!$('#agent-panel'))return;const c=current(),project=c?.project;
  $('#workspace-mode').textContent=agentSpace?.runner?'LOCAL RUNNER · CONNECTED':agentSpace?.handle?'LOCAL FOLDER · BROWSER FILE TOOLS':'BROWSER WORKSPACE · NO FOLDER';
  $('#runner-state').textContent=agentSpace?.runner?'Folder connected · isolated Node/Python tests available':'Built-in JavaScript runner · ready · no installation';
  $('#agent-goal-title').textContent=c?.title||'What will you build?';
- $('#agent-state').textContent=busy?'Working':project?.runs?.at(-1)?.status?.replaceAll('_',' ')||'Ready';
- $('#agent-empty').hidden=!!project?.events?.length;$('#agent-log').replaceChildren();
- if(!project?.events?.length&&c?.messages?.length){$('#agent-empty').hidden=true;for(const m of c.messages.slice(-30))renderAgentEvent({type:'note',message:m.role+': '+m.content},false);}
- for(const e of (project?.events||[]).slice(-70))renderAgentEvent(e,false);
- const list=$('#agent-files');list.replaceChildren();for(const path of Object.keys(project?.files||{}).sort()){const b=el('button','agent-file'+(path===selectedFile?' active':''),path);bind(b,()=>{selectedFile=path;$('#file-source').value=project.files[path];$('#file-name').textContent=path;$('#file-view').hidden=false;});list.append(b);}
- $('#file-total').textContent=Object.keys(project?.files||{}).length+' files';
- if(selectedFile&&project?.files?.[selectedFile]!==undefined)$('#file-source').value=project.files[selectedFile];
- $('#agent-workers').textContent='Lead + up to 2 specialists';
+ const last=!busy&&project?.pendingRun?{...project.pendingRun,status:'interrupted',error:'This run was interrupted before it finished. Saved files are preserved. Retry the goal to continue.'}:project?.runs?.at(-1);$('#agent-state').textContent=busy?'Working':last?.status?.replaceAll('_',' ')||'Ready';
+ const items=conversationItems(c);$('#agent-empty').hidden=!!items.length;$('#agent-log').replaceChildren();for(const e of items.slice(-150))renderAgentEvent(e,false);
+ $('#agent-typing').hidden=!busy;
+ $('#run-recovery').hidden=busy||!last||last.status==='completed';
+ $('#recovery-message').textContent=last?.status==='budget_reached'?'This run reached its step limit. Your files are saved; continue the same goal to finish the remaining work.':last?.error||'The run stopped. Your existing files are preserved. You can retry this goal or choose another model.';
+ $('#retry-run').textContent=last?.status==='budget_reached'?'Continue goal':'Retry goal';
+ refreshProjectFiles();if(selectedFile&&project?.files?.[selectedFile]!==undefined)$('#file-source').value=project.files[selectedFile];
+ requestAnimationFrame(()=>{const panel=$('#agent-panel');panel.scrollTop=panel.scrollHeight;});
 }
-function renderAgentEvent(e,append=true){const log=$('#agent-log');if(!log)return;const item=el('div','agent-event event-'+e.type);let label=e.type.toUpperCase(),text=e.message||'';if(e.type==='phase'){label=e.phase;text=e.message;}if(e.type==='plan'){label='PLAN';text=e.items.map((x,i)=>(i+1)+'. '+x).join('\n');}if(e.type==='file'){label='FILE WRITTEN';text=e.path+' · '+e.bytes+' bytes';}if(e.type==='agent'){label=e.role;text=e.status+(e.message?' · '+e.message:'');}if(e.type==='test'){label=e.ok?'TEST PASSED':'TEST FAILED';text=(e.engine||e.command?.join(' ')||'JavaScript sandbox')+'\n'+(e.error||e.output||'')+(e.assertions?'\n'+e.assertions+' assertions':'');}if(e.type==='budget'){label='BUDGET';text=e.calls+'/'+e.maxCalls+' model calls · round '+e.step+'/'+e.maxSteps;}item.append(el('span','event-label',label),el('pre','event-text',text));log.append(item);while(log.children.length>100)log.firstElementChild.remove();if(append)requestAnimationFrame(()=>{log.scrollTop=log.scrollHeight;});}
+function renderAgentEvent(e,append=true){const log=$('#agent-log');if(!log)return;
+ if(e.type==='agent'){if(append)$('#agent-typing').textContent=e.status==='running'?(e.role==='Lead'?'Prism is planning the next action…':e.role+' is reviewing in parallel…'):'Prism is working on the next step…';return;}
+ if(e.type==='budget'||(e.type==='phase'&&!['Delivered','Blocked','Stopped','Paused','Parallel review'].includes(e.phase)))return;
+ if(e.type==='note'&&e.message?.startsWith('Goal: '))return;
+ const item=el('article','agent-event event-'+e.type);let label=e.type==='user'?'You':'Prism',text=e.message||'';
+ if(e.type==='phase'){label=e.phase==='Delivered'?'Prism · result':e.phase==='Blocked'?'Prism · needs attention':e.phase==='Parallel review'?'Prism · specialists':'Prism · '+e.phase.toLowerCase();}
+ if(e.type==='plan')text='Here’s the plan:\n'+e.items.map((x,i)=>(i+1)+'. '+x).join('\n');
+ if(e.type==='file'){text='Updated '+e.path;}
+ if(e.type==='test'){label=e.ok?'Prism · checks passed':'Prism · check failed';text=(e.command?.join(' ')||'JavaScript checks')+(e.assertions?' · '+e.assertions+' assertions':'')+'\n'+(e.error||e.output||'');}
+ item.append(el('span','event-label',label),el('div','event-text',text));
+ if(e.type==='file'){const b=el('button','text-link','Open file');bind(b,()=>openProjectFile(e.path));item.append(b);}
+ log.append(item);while(log.children.length>180)log.firstElementChild.remove();if(append)requestAnimationFrame(()=>{const panel=$('#agent-panel');panel.scrollTop=panel.scrollHeight;});
+}
+$('#show-project-files').addEventListener('click',()=>{if(!desktopOnly()||!data)return;refreshProjectFiles();$('#project-files-dialog').showModal();});
+$('#close-project-files').addEventListener('click',()=>$('#project-files-dialog').close());
+$('#retry-run').addEventListener('click',()=>{if(!desktopOnly()||!data||busy)return;const run=current()?.project?.pendingRun||current()?.project?.runs?.at(-1);if(!run?.goal)return;$('#prompt').value=run.goal;$('#prompt').focus();toast('Previous goal restored. Edit it or run again; existing files are kept.');});
 async function runAgentGoal(){if(!desktopOnly()||!data||busy)return;const goal=$('#prompt').value.trim();if(!goal)return;$('#chat-error').hidden=true;
  let c=ensureProject();if(!c.connectionId)c.connectionId=data.preferences.connectionId;
  if(!c.connectionId){await activateCloudflare('@cf/qwen/qwen3.8-27b');c.connectionId=data.preferences.connectionId;}
  const connection=data.connections.find(x=>x.id===c.connectionId);if(!connection){errorAt('#chat-error','Choose a model in Settings first.');return;}
- const ws=workspaceFor(c),generation=epoch;controller=new AbortController();const signal=controller.signal;signal.addEventListener('abort',()=>{if(ws.runner)ws.remote('/cancel',{}).catch(()=>{});},{once:true});
- c.title=c.title==='Untitled build'?goal.slice(0,60):c.title;c.messages.push({id:uid(),role:'user',content:goal,createdAt:Date.now()});c.updatedAt=Date.now();$('#prompt').value='';busy=true;await persist();render();
+ let effectiveConnection=connection;let usedRecovery=false;const ws=workspaceFor(c),generation=epoch;controller=new AbortController();const signal=controller.signal;signal.addEventListener('abort',()=>{if(ws.runner)ws.remote('/cancel',{}).catch(()=>{});},{once:true});
+ c.title=c.title==='Untitled build'?goal.slice(0,60):c.title;c.messages.push({id:uid(),role:'user',content:goal,createdAt:Date.now()});c.updatedAt=Date.now();c.project.pendingRun={goal,at:Date.now()};$('#prompt').value='';busy=true;await persist();render();
  const timeout=setTimeout(()=>controller?.abort(),8*60*1000);
  const emit=e=>{if(generation!==epoch||!data)return;c.project.events.push(e);if(c.project.events.length>250)c.project.events.shift();$('#agent-empty').hidden=true;renderAgentEvent(e);if(e.type==='phase')$('#agent-state').textContent=e.phase;};
- try{emit({type:'note',message:'Goal: '+goal,time:Date.now()});const skill=[...BUILTIN_SKILLS,...data.skills].find(x=>x.id===(c.skillId||'build'))?.instructions||'';
- const result=await runHarness({goal,generate:(system,messages,sig)=>agentGenerate(connection,system,messages,sig),tools:ws,skill,signal,onEvent:emit,parallel:$('#parallel-agents').checked,context:systemContext(data,c.skillId).split('\n\n').slice(1).join('\n\n'),history:[]});
- if(generation!==epoch||!data)return;c.project.runs.push({...result,at:Date.now(),goal});c.project.runs=c.project.runs.slice(-20);c.messages.push({id:uid(),role:'assistant',content:result.summary||result.error||'Run paused. Review files and tool results before continuing.',model:connection.model,createdAt:Date.now()});await persist();
- }catch(e){if(generation===epoch&&data){emit({type:'error',message:e.message,time:Date.now()});errorAt('#chat-error',e);await persist();}}
+ try{const skill=[...BUILTIN_SKILLS,...data.skills].find(x=>x.id===(c.skillId||'build'))?.instructions||'';
+ const result=await runHarness({goal,generate:async(system,messages,sig)=>{
+ try{const raw=await agentGenerate(effectiveConnection,system,messages,sig);if(effectiveConnection.provider==='cloudflare'&&effectiveConnection.model!=='@cf/qwen/qwen3.8-27b'&&!system.startsWith('You are an independent'))parseAction(raw);return raw;}
+ catch(e){const canRecover=!usedRecovery&&!sig?.aborted&&effectiveConnection.provider==='cloudflare'&&effectiveConnection.model!=='@cf/qwen/qwen3.8-27b'&&/no final text|invalid action JSON|response ended inside|Expected an action|Action field|Each file needs|no usable action|Conflicting action/i.test(e.message);
+ if(!canRecover)throw e;usedRecovery=true;emit({type:'note',message:effectiveConnection.label+' did not return a usable action. Continuing with Qwen3.8 on the same shared free allowance; no paid service is used.',time:Date.now()});effectiveConnection={...connection,label:'Qwen3.8 27B · Cloudflare',model:'@cf/qwen/qwen3.8-27b'};return agentGenerate(effectiveConnection,system,messages,sig);}
+ },tools:ws,skill,signal,onEvent:emit,parallel:$('#parallel-agents').checked,context:systemContext(data,c.skillId).split('\n\n').slice(1).join('\n\n'),history:c.messages.slice(0,-1).slice(-4).map(m=>({role:m.role,content:m.content.slice(0,2500)}))});
+ if(generation!==epoch||!data)return;delete c.project.pendingRun;c.project.runs.push({...result,at:Date.now(),goal,model:effectiveConnection.model});c.project.runs=c.project.runs.slice(-20);c.messages.push({id:uid(),role:'assistant',content:result.summary||result.error||'Run paused. Review files and tool results before continuing.',model:effectiveConnection.model,agentRunId:uid(),createdAt:Date.now()});await persist();
+ }catch(e){if(generation===epoch&&data){delete c.project.pendingRun;c.project.runs.push({status:'blocked',goal,error:e.message,at:Date.now()});emit({type:'error',message:e.message,time:Date.now()});errorAt('#chat-error',e);await persist();}}
  finally{clearTimeout(timeout);if(generation===epoch){busy=false;controller=null;render();}}
 }
 $('#workspace-plus').addEventListener('click',()=>{if(!desktopOnly()||!data||busy)return;$('#workspace-dialog').showModal();});
