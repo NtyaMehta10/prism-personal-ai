@@ -1,8 +1,9 @@
-import {runHarness,BUILTIN_SKILLS,parseAction} from './agent/harness.js?v=conversation-3';
-import {Workspace,zipFiles} from './agent/workspace.js?v=conversation-3';
+import {ProjectBrowser} from './agent/project-browser.js?v=project-browser-1';
+import {runHarness,BUILTIN_SKILLS,parseAction} from './agent/harness.js?v=project-browser-1';
+import {Workspace,zipFiles} from './agent/workspace.js?v=project-browser-1';
 import {STORAGE_KEY,deriveKey,encrypt,decrypt,validateEnvelope} from './vault.js';
-import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-models-3';
-import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-models-3';
+import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=project-browser-1';
+import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=project-browser-1';
 const desktopOnly=()=>!(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1));
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], uid=()=>crypto.randomUUID();
 let data=null,key=null,salt=null,activeId='',view='chat',busy=false,controller=null,epoch=0,lastActivity=Date.now(),saveQueue=Promise.resolve(),toastTimer,editorSave;
@@ -143,10 +144,12 @@ $('#free-dialog').addEventListener('close',()=>{freeRequest++;freeModels=[];free
 
 // Prism Agent Studio. Project files and run receipts stay in the existing encrypted vault.
 let agentSpace=null,spaceId='',selectedFile='';const modelDispatches=[];
-async function agentGenerate(connection,system,messages,signal){if(connection.provider==='cloudflare'){if(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){$('#agent-state').textContent='Waiting for free rate limit';$('#agent-typing').textContent='Waiting briefly for the shared free-model rate limit. You can stop this run.';}while(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){const delay=61050-(Date.now()-modelDispatches.filter(t=>Date.now()-t<61000)[0]);await new Promise((resolve,reject)=>{const onAbort=()=>{clearTimeout(timer);reject(new DOMException('Stopped','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',onAbort);resolve();},Math.max(10,delay));signal.addEventListener('abort',onAbort,{once:true});});}if(signal.aborted)throw new DOMException('Stopped','AbortError');while(modelDispatches.length&&Date.now()-modelDispatches[0]>=61000)modelDispatches.shift();modelDispatches.push(Date.now());}return requestReply(connection,system,messages,{signal,temperature:.2,onChunk:()=>{}});}
+async function rateWait(ms,signal){const until=Date.now()+ms;while(Date.now()<until){if(signal.aborted)throw new DOMException('Stopped','AbortError');$('#agent-state').textContent='Waiting for shared limit';$('#agent-typing').textContent='Shared free capacity: retrying in '+Math.ceil((until-Date.now())/1000)+'s. Your files are kept. Changing models does not reset this allowance.';await new Promise((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(new DOMException('Stopped','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},Math.min(1000,until-Date.now()));signal.addEventListener('abort',abort,{once:true});});}}
+async function agentGenerate(connection,system,messages,signal,retried=false){if(connection.provider==='cloudflare'){while(modelDispatches.filter(t=>Date.now()-t<61000).length>=4){await rateWait(61050-(Date.now()-modelDispatches.filter(t=>Date.now()-t<61000)[0]),signal);}if(signal.aborted)throw new DOMException('Stopped','AbortError');while(modelDispatches.length&&Date.now()-modelDispatches[0]>=61000)modelDispatches.shift();modelDispatches.push(Date.now());}$('#agent-typing').textContent='Prism is preparing the next action…';const combined=AbortSignal.any([signal,AbortSignal.timeout(90000)]);try{return await requestReply(connection,system,messages,{signal:combined,temperature:.2,onChunk:()=>{}});}catch(e){if(e.status===429&&!retried&&!signal.aborted){await rateWait(e.retryAfter*1000,signal);return agentGenerate(connection,system,messages,signal,true);}if(e.status===429)e.message='Shared free capacity is still limited after the server-requested wait. Your files are saved. Retry later; switching these models cannot bypass the account limit.';throw e;}}
+
 function disconnectAgent(){if(agentSpace?.runner)agentSpace.remote('/cancel',{}).catch(()=>{});agentSpace=null;spaceId='';selectedFile='';$('#agent-files')?.replaceChildren();if($('#file-source'))$('#file-source').value='';}
 function ensureProject(){let c=current();if(!c){c={id:uid(),title:'Untitled build',messages:[],connectionId:data.preferences.connectionId||'',skillId:data.preferences.skillId||'build',updatedAt:Date.now()};data.chats.push(c);activeId=c.id;}c.project||={};c.project.files||={};c.project.events||=[];c.project.runs||=[];c.messages||=[];return c;}
-function workspaceFor(c){if(spaceId!==c.id||!agentSpace){agentSpace=new Workspace(c.project,persist);spaceId=c.id;}return agentSpace;}
+function workspaceFor(c){if(spaceId!==c.id||!agentSpace){agentSpace=new Workspace(c.project,persist);agentSpace.browser=(actions,signal)=>projectBrowserActions(c,actions,signal);spaceId=c.id;}return agentSpace;}
 function conversationItems(c){
  const events=c?.project?.events||[],items=[];
  for(const m of c?.messages||[]){
@@ -177,7 +180,7 @@ function renderAgent(){if(!$('#agent-panel'))return;const c=current(),project=c?
  refreshProjectFiles();if(selectedFile&&project?.files?.[selectedFile]!==undefined)$('#file-source').value=project.files[selectedFile];
  requestAnimationFrame(()=>{const panel=$('#agent-panel');panel.scrollTop=panel.scrollHeight;});
 }
-function renderAgentEvent(e,append=true){const log=$('#agent-log');if(!log)return;
+function renderAgentEvent(e,append=true){if(e.type==='browser'){e={...e,type:'test',command:['Project browser'],output:(e.observations||[]).map(x=>x.text||'').join('\n')+(e.errors?.length?'\n'+e.errors.join('\n'):''),error:e.error};}const log=$('#agent-log');if(!log)return;
  if(e.type==='agent'){if(append)$('#agent-typing').textContent=e.status==='running'?(e.role==='Lead'?'Prism is planning the next action…':e.role+' is reviewing in parallel…'):'Prism is working on the next step…';return;}
  if(e.type==='budget'||(e.type==='phase'&&!['Delivered','Blocked','Stopped','Paused','Parallel review'].includes(e.phase)))return;
  if(e.type==='note'&&e.message?.startsWith('Goal: '))return;
@@ -192,14 +195,14 @@ function renderAgentEvent(e,append=true){const log=$('#agent-log');if(!log)retur
 }
 $('#show-project-files').addEventListener('click',()=>{if(!desktopOnly()||!data)return;refreshProjectFiles();$('#project-files-dialog').showModal();});
 $('#close-project-files').addEventListener('click',()=>$('#project-files-dialog').close());
-$('#retry-run').addEventListener('click',()=>{if(!desktopOnly()||!data||busy)return;const run=current()?.project?.pendingRun||current()?.project?.runs?.at(-1);if(!run?.goal)return;$('#prompt').value=run.goal;$('#prompt').focus();toast('Previous goal restored. Edit it or run again; existing files are kept.');});
+$('#retry-run').addEventListener('click',()=>{if(!desktopOnly()||!data||busy)return;const run=current()?.project?.pendingRun||current()?.project?.runs?.at(-1);if(!run?.goal)return;$('#prompt').value=run.goal;$('#prompt').focus();runAgentGoal();});
 async function runAgentGoal(){if(!desktopOnly()||!data||busy)return;const goal=$('#prompt').value.trim();if(!goal)return;$('#chat-error').hidden=true;
  let c=ensureProject();if(!c.connectionId)c.connectionId=data.preferences.connectionId;
  if(!c.connectionId){await activateCloudflare('@cf/qwen/qwen3.8-27b');c.connectionId=data.preferences.connectionId;}
  const connection=data.connections.find(x=>x.id===c.connectionId);if(!connection){errorAt('#chat-error','Choose a model in Settings first.');return;}
  let effectiveConnection=connection;let usedRecovery=false;const ws=workspaceFor(c),generation=epoch;controller=new AbortController();const signal=controller.signal;signal.addEventListener('abort',()=>{if(ws.runner)ws.remote('/cancel',{}).catch(()=>{});},{once:true});
  c.title=c.title==='Untitled build'?goal.slice(0,60):c.title;c.messages.push({id:uid(),role:'user',content:goal,createdAt:Date.now()});c.updatedAt=Date.now();c.project.pendingRun={goal,at:Date.now()};$('#prompt').value='';busy=true;await persist();render();
- const timeout=setTimeout(()=>controller?.abort(),8*60*1000);
+ const timeout=setTimeout(()=>controller?.abort(),12*60*1000);
  const emit=e=>{if(generation!==epoch||!data)return;c.project.events.push(e);if(c.project.events.length>250)c.project.events.shift();$('#agent-empty').hidden=true;renderAgentEvent(e);if(e.type==='phase')$('#agent-state').textContent=e.phase;};
  try{const skill=[...BUILTIN_SKILLS,...data.skills].find(x=>x.id===(c.skillId||'build'))?.instructions||'';
  const result=await runHarness({goal,generate:async(system,messages,sig)=>{
@@ -207,7 +210,7 @@ async function runAgentGoal(){if(!desktopOnly()||!data||busy)return;const goal=$
  catch(e){const canRecover=!usedRecovery&&!sig?.aborted&&effectiveConnection.provider==='cloudflare'&&effectiveConnection.model!=='@cf/qwen/qwen3.8-27b'&&/no final text|invalid action JSON|response ended inside|Expected an action|Action field|Each file needs|no usable action|Conflicting action/i.test(e.message);
  if(!canRecover)throw e;usedRecovery=true;emit({type:'note',message:effectiveConnection.label+' did not return a usable action. Continuing with Qwen3.8 on the same shared free allowance; no paid service is used.',time:Date.now()});effectiveConnection={...connection,label:'Qwen3.8 27B · Cloudflare',model:'@cf/qwen/qwen3.8-27b'};return agentGenerate(effectiveConnection,system,messages,sig);}
  },tools:ws,skill,signal,onEvent:emit,parallel:$('#parallel-agents').checked,context:systemContext(data,c.skillId).split('\n\n').slice(1).join('\n\n'),history:c.messages.slice(0,-1).slice(-4).map(m=>({role:m.role,content:m.content.slice(0,2500)}))});
- if(generation!==epoch||!data)return;delete c.project.pendingRun;c.project.runs.push({...result,at:Date.now(),goal,model:effectiveConnection.model});c.project.runs=c.project.runs.slice(-20);c.messages.push({id:uid(),role:'assistant',content:result.summary||result.error||'Run paused. Review files and tool results before continuing.',model:effectiveConnection.model,agentRunId:uid(),createdAt:Date.now()});await persist();
+ if(generation!==epoch||!data)return;delete c.project.pendingRun;c.project.runs.push({...result,at:Date.now(),goal,model:effectiveConnection.model});c.project.runs=c.project.runs.slice(-20);if(Object.keys(c.project.files).some(p=>p.endsWith('.html'))){await projectBrowserActions(c,[{action:'inspect'}],signal).catch(e=>emit({type:'error',message:'Project browser: '+e.message,time:Date.now()}));}c.messages.push({id:uid(),role:'assistant',content:result.summary||result.error||'Run paused. Review files and tool results before continuing.',model:effectiveConnection.model,agentRunId:uid(),createdAt:Date.now()});await persist();
  }catch(e){if(generation===epoch&&data){delete c.project.pendingRun;c.project.runs.push({status:'blocked',goal,error:e.message,at:Date.now()});emit({type:'error',message:e.message,time:Date.now()});errorAt('#chat-error',e);await persist();}}
  finally{clearTimeout(timeout);if(generation===epoch){busy=false;controller=null;render();}}
 }
@@ -224,7 +227,9 @@ function speak(text){if(!('speechSynthesis'in window))return;speechSynthesis.can
 
 if(!desktopOnly()){$('#gate').hidden=true;$('#app').hidden=true;$('#mobile-block').hidden=false;}
 
-$('#preview-project').addEventListener('click',()=>{if(!desktopOnly()||!data)return;const c=current();if(!c?.project?.files||!Object.keys(c.project.files).some(p=>p.endsWith('.html'))){toast('Ask the agent to create an HTML entry point first.');return;}$('#web-preview').src='./agent/preview.html';$('#preview-dialog').showModal();});
-window.addEventListener('message',e=>{if(e.source!==$('#web-preview').contentWindow||!e.data?.prismPreviewReady||!data||!desktopOnly())return;$('#web-preview').contentWindow.postMessage({files:current()?.project?.files||{}},'*');});
-$('#close-preview').addEventListener('click',()=>{$('#preview-dialog').close();$('#web-preview').src='about:blank';});
-$('#preview-dialog').addEventListener('close',()=>{$('#web-preview').src='about:blank';});
+const projectBrowser=new ProjectBrowser($('#web-preview'));let browserProjectId='';
+async function projectBrowserActions(c,actions,signal){if(!desktopOnly()||!data)throw Error('Use a computer and unlock Prism first.');if(browserProjectId!==c.id){projectBrowser.reset();browserProjectId=c.id;}if(!$('#preview-dialog').open)$('#preview-dialog').show();document.body.classList.add('browser-open');$('#browser-status').textContent='Loading project…';const result=await projectBrowser.run(await workspaceFor(c).snapshot(),actions,signal);$('#browser-status').textContent=result.ok?'Project ready · isolated browser':result.error||'Browser check failed';return result;}
+$('#preview-project').addEventListener('click',async()=>{try{const c=current();if(!c)return;await projectBrowserActions(c,[{action:'inspect'}]);}catch(e){toast(e.message);}});
+$('#reload-preview').addEventListener('click',async()=>{try{projectBrowser.reset();await projectBrowserActions(current(),[{action:'inspect'}]);}catch(e){toast(e.message);}});
+$('#close-preview').addEventListener('click',()=>$('#preview-dialog').close());
+$('#preview-dialog').addEventListener('close',()=>{document.body.classList.remove('browser-open');projectBrowser.reset();browserProjectId='';$('#web-preview').src='about:blank';});

@@ -1,5 +1,5 @@
-import {safePath} from './harness.js';
-import {browserTest} from './browser-test.js';
+import {safePath} from './harness.js?v=project-browser-1';
+import {browserTest} from './browser-test.js?v=project-browser-1';
 export class Workspace{
  constructor(project,save){this.project=project;this.save=save;this.mode='Browser virtual workspace: create files, built-in JavaScript runner, node file.js / node --test test.js as a browser subset, CommonJS modules, read-only virtual fs, HTML preview and downloadable archive. No native shell, Python or installs.';this.runner=null;this.handle=null;}
  async attach(handle){this.handle=handle;this.mode='Browser selected folder '+handle.name+': read/write text files and sandbox JavaScript tests. Native commands unavailable without runner.';this.project.files=await this.snapshot();await this.save();}
@@ -7,6 +7,8 @@ export class Workspace{
  async read(path){safePath(path);if(this.handle){let dir=this.handle;const parts=path.split('/');for(const part of parts.slice(0,-1))dir=await dir.getDirectoryHandle(part);const file=await(await dir.getFileHandle(parts.at(-1))).getFile();if(file.size>120000)throw Error('File exceeds 120 KB');return file.text();}if(this.runner)return (await this.remote('/read',{path})).content;if(!(path in this.project.files))throw Error('File not found');return this.project.files[path];}
  async write(path,content){safePath(path);if(this.runner)await this.remote('/write',{path,content});if(this.handle){let dir=this.handle;const parts=path.split('/');for(const part of parts.slice(0,-1))dir=await dir.getDirectoryHandle(part,{create:true});const f=await dir.getFileHandle(parts.at(-1),{create:true}),out=await f.createWritable();await out.write(content);await out.close();}this.project.files[path]=content;}
  async snapshot(){const files={};for(const path of (await this.list()).slice(0,40)){try{const text=await this.read(path);if(text.length<=120000)files[path]=text;}catch{}}return files;}
+ async draftInfo(){return Object.entries(this.project.drafts||{}).map(([path,content])=>({path,nextOffset:content.length,tail:content.slice(-600)}));}
+ async stageChunk(chunk){const path=safePath(chunk.path);this.project.drafts||={};const previous=this.project.drafts[path]||'';if(chunk.offset!==previous.length)throw Error('Chunk offset mismatch. Expected '+previous.length+'. Read the saved chunk offset; do not repeat text.');if(previous.length+chunk.content.length>120000)throw Error('Staged file exceeds 120 KB.');const content=previous+chunk.content;if(chunk.final){await this.write(path,content);delete this.project.drafts[path];return {written:true,bytes:new TextEncoder().encode(content).length};}this.project.drafts[path]=content;return {staged:true,nextOffset:content.length};}
  async test(code,signal){return browserTest(await this.snapshot(),code,signal);}
  async flush(){await this.save();}
  async command(argv,signal){if(!this.runner)return browserTest(await this.snapshot(),'',signal,argv);return this.remote('/run',{argv},signal);}
