@@ -1,5 +1,7 @@
+import {verifyFreeConnection} from './free-models.js?v=free-models-1';
 export const PROVIDERS = {
   openrouter:{label:'OpenRouter',base:'https://openrouter.ai/api/v1',placeholder:'provider/model-name',format:'openai'},
+  groq:{label:'Groq',base:'https://api.groq.com/openai/v1',placeholder:'openai/gpt-oss-20b',format:'openai'},
   openai:{label:'OpenAI',base:'https://api.openai.com/v1',placeholder:'Your model ID',format:'openai'},
   gemini:{label:'Google Gemini',base:'https://generativelanguage.googleapis.com/v1beta',placeholder:'Your Gemini model ID',format:'gemini'},
   anthropic:{label:'Anthropic',base:'https://api.anthropic.com/v1',placeholder:'Your Claude model ID',format:'anthropic'},
@@ -25,6 +27,7 @@ export function systemContext(data, skillId) {
   return parts.join('\n\n');
 }
 export async function requestReply(connection, system, messages, {signal,onChunk,temperature=.7}={}) {
+  await verifyFreeConnection(connection,{signal});
   const base=safeBase(connection.base), provider=PROVIDERS[connection.provider];
   if(!provider)throw new Error('Unknown provider. Edit this connection.');
   const chat=messages.filter(m=>m.role==='user'||m.role==='assistant').map(({role,content})=>({role,content}));
@@ -43,6 +46,7 @@ export async function requestReply(connection, system, messages, {signal,onChunk
     // Reasoning models may reject temperature; omit it for OpenAI and leave provider defaults.
     if(connection.provider!=='openai') {body.temperature=temperature;body.max_tokens=4096;}
     else body.max_completion_tokens=4096;
+    if(connection.freeOnly)body.provider={max_price:{prompt:0,completion:0,request:0},allow_fallbacks:true};
   }
   let response;
   try{response=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});}catch(error){if(error.name==='AbortError')throw error;throw new Error('Could not reach '+new URL(base).hostname+'. Check the API base URL, your connection and whether this provider permits browser requests (CORS). No automatic retry was made.');}
@@ -52,7 +56,7 @@ export async function requestReply(connection, system, messages, {signal,onChunk
     throw new Error(hints[response.status]||'The provider returned HTTP '+response.status+'. No automatic retry was made.');
   }
   if(provider.format==='gemini') {
-    const result=await response.json();const text=result.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('');
+    const result=await response.json();const text=result.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join('');
     if(!text)throw new Error('The provider returned no text. Its safety or output limits may have blocked the response.');onChunk?.(text);return text;
   }
   if(provider.format==='anthropic') {

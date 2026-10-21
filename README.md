@@ -49,3 +49,24 @@ The repository is a standalone static site and is compatible with free GitHub Pa
 ## Validation
 
 Local Chromium desktop and phone-size tests exercised encrypted creation/unlock/lock, at-rest encryption, failed-key error handling, explicit retry, multiple connections, personal/skill/memory context, mobile overflow, Web Crypto tamper rejection, and all three request formats. AI provider responses were mocked with non-working test credentials; no real provider accounts or credits were used. Live provider access remains dependent on the key/model the user supplies and its CORS policy.
+
+## Free-model library
+
+Open **Settings & models → Explore models**, or **Explore free models** on a new conversation.
+
+- **OpenRouter** fetches the live public models catalog and shows only zero-priced text input/output models whose IDs are `:free` or `openrouter/free`. Search by name or ID, connect, then add your own OpenRouter API key in the encrypted settings form. The router selects among free models; specific free variants are also selectable. Before saving and before every reply, Prism refreshes pricing and fails closed if the selected model is no longer free. Requests constrain provider token pricing to zero and never include paid model fallback arrays or paid plugins. Catalog calls contain no API keys, messages or personal context. Free capacity is not unlimited: the documented no-credit-purchase tier is generally 20 requests/minute and 50/day, subject to provider/account limits. No credit purchase is required by Prism.
+- **Groq Free plan** presets: `openai/gpt-oss-20b` and `openai/gpt-oss-120b`. Your own Groq key is required. Published base quotas are 30 requests/minute, 1,000/day, 8,000 tokens/minute and 200,000/day per organization, subject to account-specific exceptions. Stay on the Free plan; Developer-plan usage is billable.
+- **Gemini Free tier** preset: `gemini-3.5-flash-lite`. Your own Gemini API key and eligible free-tier project are required. Regional access and project quotas apply; check AI Studio. A paid/billing-enabled project can charge for this same model, and free-tier data may be used to improve Google products. No grounding, search, caching or other paid tools are requested by Prism.
+
+Prism cannot inspect Groq/Gemini billing tiers or promise unlimited service. No account is created or upgraded for you, no key is embedded or shared, and no keyless cloud/local inference is claimed. Provider errors are shown without fabricated replies. A provider signup may be required if you do not already have a key. Keys are entered only in the app and remain in the existing encrypted device-local vault; all existing vaults stay compatible.
+
+Provider references (checked October 21, 2026):
+- https://openrouter.ai/docs/guides/routing/routers/free-router
+- https://openrouter.ai/docs/guides/routing/model-variants/free
+- https://openrouter.ai/docs/api_reference/limits
+- https://openrouter.ai/docs/guides/routing/provider-selection
+- https://console.groq.com/docs/rate-limits
+- https://ai.google.dev/gemini-api/docs/pricing
+- https://ai.google.dev/gemini-api/docs/models
+
+Catalog browser requests and preflight CORS were checked from the GitHub Pages origin. Inference adapters are tested with synthetic keys and mocked responses; real owner-key inference still requires configuring a valid key. Free model availability and terms can change.
