@@ -1,23 +1,23 @@
 # Prism
 
-A personal AI workspace with no-key Cloudflare free chat and optional bring-your-own-key providers with a responsive frosted-glass interface. Static HTML, CSS and JavaScript; no build step or paid hosting dependency.
+An agentic coding workspace with no-key Cloudflare free models and optional bring-your-own-key providers with a responsive frosted-glass interface. Static HTML, CSS and JavaScript; no build step or paid hosting dependency.
 
-## What works
+## Agent Studio
 
-- Multiple saved provider/key/model connections, including multiple keys for the same provider.
-- Searchable chat history, pinning and renaming, streaming OpenAI-compatible replies, explicit stop/retry, and per-conversation model/skill selection.
-- Conversation branches that preserve the original, including edit-as-a-new-branch drafts.
-- Keyboard quick switch (Ctrl/Cmd+K) for conversations and workspace actions.
-- Safe Markdown-style replies with fenced code and copy-code controls; raw HTML stays inert.
-- OpenAI Chat Completions, OpenRouter, Google Gemini `generateContent`, Anthropic Messages, and HTTPS OpenAI-compatible endpoints.
-- Editable memories that can be paused or disabled, personal context and response preferences.
-- User-created skills: reusable model instructions, not executable tools.
-- Browser dictation when supported, per-reply read aloud, and optional automatic read aloud. Browser/OS speech services may process spoken audio or text.
-- Passphrase-encrypted device-local vault; encrypted backup/restore and explicit plaintext conversation export.
+Desktop/laptop-only coding workspace. Give a goal in plain language. The lead model plans, reads and writes multiple scoped text files, runs checks, inspects failures and repairs within 8 rounds and 12 model calls. Up to two independent model specialists can run concurrently for read-only analysis/proposed files; the lead merges their work. They do not have independent terminal access. Stop cancels ongoing requests and tests. Budgets and actual tool receipts are shown; failure or exhausted budget is not displayed as completion.
+
+- **No-folder projects:** private virtual files encrypted in the existing browser vault; export a real ZIP. JavaScript assertions run in an opaque sandbox with no network/DOM/native shell.
+- **Connect folder (+):** desktop Chromium File System Access picker. Reads and creates/replaces scoped non-hidden text files. Review the folder first; sensitive data may be sent to your selected model. Folder permission is not terminal access.
+- **Connect runner (+):** download `prism-runner.zip`, read its setup guide, start Python in a dedicated workspace and pair its session token. Docker must be installed/running and images pre-pulled for native Node/Python tests. The runner is not remotely installed or connected by this website.
+- Native tests run against read-only project snapshots in disposable network-disabled Docker containers, not arbitrary shell sessions. No dependency installation, Git operations, external services, browser automation, paid actions or universal agent parity.
+- Six built-in instruction skills plus custom skills; editable memories/personalization and optional provider connections preserved.
+- Existing vault format stays compatible. Old conversations remain stored; the activity panel includes their transcript when there is no agent run.
+
+Free models have short output/context caps and a shared daily allowance. Prefer small incremental builds. Large goals may need multiple runs or a more capable optional provider. A passed test proves only the submitted assertions, not product correctness/security.
 
 ## Start
 
-Open the deployed HTTPS site, create a strong vault passphrase (12 characters minimum), and choose **Use Cloudflare free · no key** on a new conversation for Llama 3.2 3B without a key. Optional providers: open **Settings & models → Add connection**. Enter a label, provider, trusted HTTPS API base, exact model ID, and your API key. You can add several connections and select a model in the chat toolbar.
+Open the deployed HTTPS site, create a strong vault passphrase (12 characters minimum), and choose a Cloudflare model through **Settings & models → Explore models**, then start a new build without a key. Optional providers: open **Settings & models → Add connection**. Enter a label, provider, trusted HTTPS API base, exact model ID, and your API key. You can add several connections and select a model in the chat toolbar.
 
 No real keys, conversations or personal memories ship with the application. There are no simulated replies. API use can incur charges with your provider; publishing/hosting this static app does not subscribe you to an AI provider.
 
