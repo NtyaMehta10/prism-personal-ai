@@ -1,0 +1,7 @@
+{
+  "name": "prism-free-ai",
+  "main": "cloudflare-worker.js",
+  "compatibility_date": "2026-10-21",
+  "ai": {"binding": "AI"},
+  "ratelimits": [{"name": "PRISM_LIMITER", "namespace_id": "437916", "simple": {"limit": 4, "period": 60}}]
+}

@@ -1,6 +1,6 @@
 # Prism
 
-A personal, bring-your-own-key AI workspace with a responsive frosted-glass interface. Static HTML, CSS and JavaScript; no build step or paid hosting dependency.
+A personal AI workspace with no-key Cloudflare free chat and optional bring-your-own-key providers with a responsive frosted-glass interface. Static HTML, CSS and JavaScript; no build step or paid hosting dependency.
 
 ## What works
 
@@ -17,7 +17,7 @@ A personal, bring-your-own-key AI workspace with a responsive frosted-glass inte
 
 ## Start
 
-Open the deployed HTTPS site, create a strong vault passphrase (12 characters minimum), and open **Settings & models → Add connection**. Enter a label, provider, trusted HTTPS API base, exact model ID, and your API key. You can add several connections and select a model in the chat toolbar.
+Open the deployed HTTPS site, create a strong vault passphrase (12 characters minimum), and choose **Use Cloudflare free · no key** on a new conversation for Llama 3.2 3B without a key. Optional providers: open **Settings & models → Add connection**. Enter a label, provider, trusted HTTPS API base, exact model ID, and your API key. You can add several connections and select a model in the chat toolbar.
 
 No real keys, conversations or personal memories ship with the application. There are no simulated replies. API use can incur charges with your provider; publishing/hosting this static app does not subscribe you to an AI provider.
 
@@ -30,7 +30,7 @@ For local development, serve the directory on localhost, for example `python3 -m
 - The passphrase is never persisted or sent to a server. Forgotten passphrases cannot be recovered.
 - The unlocked page necessarily holds keys and content in memory. Encryption at rest is not protection from malicious browser extensions, a compromised device, malicious future code updates, or someone using an unlocked tab.
 - API requests send the selected connection's key and conversation, enabled memories, personalization and selected skill directly to that endpoint. Only enter trusted provider URLs. Redirects and ambient request credentials are disabled. A changed provider/endpoint requires entering a key again.
-- No analytics, external scripts, remote fonts, shared API proxy, application accounts or cloud sync. GitHub serves the app source and may retain ordinary hosting access logs; provider retention rules apply to API requests.
+- No analytics, external scripts, remote fonts, application accounts or cloud sync. Cloudflare free mode uses the app owner’s public Worker described below. GitHub serves the app source and may retain ordinary hosting access logs; provider retention rules apply to API requests.
 - Dictation/read-aloud depend on browser/OS services and can send speech/text to those services. Dictation fills a draft; it never automatically submits it.
 - The vault auto-locks after approximately 15 minutes without interaction while the tab is running. Locking hides content and drops active key references; JavaScript cannot guarantee secure erasure of device memory.
 - This is a single-device browser vault. Clearing site data removes it. Keep encrypted backups and the passphrase separately. Do not edit simultaneously in multiple tabs: there is no merge or cloud synchronization.
@@ -58,7 +58,7 @@ Open **Settings & models → Explore models**, or **Explore free models** on a n
 - **Groq Free plan** presets: `openai/gpt-oss-20b` and `openai/gpt-oss-120b`. Your own Groq key is required. Published base quotas are 30 requests/minute, 1,000/day, 8,000 tokens/minute and 200,000/day per organization, subject to account-specific exceptions. Stay on the Free plan; Developer-plan usage is billable.
 - **Gemini Free tier** preset: `gemini-3.5-flash-lite`. Your own Gemini API key and eligible free-tier project are required. Regional access and project quotas apply; check AI Studio. A paid/billing-enabled project can charge for this same model, and free-tier data may be used to improve Google products. No grounding, search, caching or other paid tools are requested by Prism.
 
-Prism cannot inspect Groq/Gemini billing tiers or promise unlimited service. No account is created or upgraded for you, no key is embedded or shared, and no keyless cloud/local inference is claimed. Provider errors are shown without fabricated replies. A provider signup may be required if you do not already have a key. Keys are entered only in the app and remain in the existing encrypted device-local vault; all existing vaults stay compatible.
+Prism cannot inspect Groq/Gemini billing tiers or promise unlimited service. No account is created or upgraded for you, no key is embedded or shared, and Cloudflare is the separate no-key cloud option described below. No local inference is claimed. Provider errors are shown without fabricated replies. A provider signup may be required if you do not already have a key. Keys are entered only in the app and remain in the existing encrypted device-local vault; all existing vaults stay compatible.
 
 Provider references (checked October 21, 2026):
 - https://openrouter.ai/docs/guides/routing/routers/free-router
@@ -70,3 +70,16 @@ Provider references (checked October 21, 2026):
 - https://ai.google.dev/gemini-api/docs/models
 
 Catalog browser requests and preflight CORS were checked from the GitHub Pages origin. Inference adapters are tested with synthetic keys and mocked responses; real owner-key inference still requires configuring a valid key. Free model availability and terms can change.
+
+
+## Cloudflare no-key chat
+
+**Use Cloudflare free · no key** selects `@cf/meta/llama-3.2-3b-instruct`. The real endpoint is `https://prism-free-ai.aethonlabs.workers.dev/v1/chat/completions`; it runs on the app owner’s Cloudflare Free account with an `AI` binding, not an API secret. No key or signup is required from the person using Prism. It uses real model inference, not a playground proxy or simulated replies. Other providers remain optional and unchanged.
+
+All enabled conversation context (messages, memories, personalization and skill) is sent through the app owner’s Cloudflare Worker to Cloudflare Workers AI after the user presses Send. The Worker does not deliberately store prompts/responses or application content logs, but Cloudflare’s platform policies, ordinary service telemetry and the account operator’s future code apply. Local vault encryption is unchanged and does not mean remote inference is end-to-end encrypted from Cloudflare. Do not send sensitive data unless comfortable with that processing.
+
+The account’s Workers AI Free allocation is 10,000 neurons/day across the account, resetting at 00:00 UTC. Availability is shared, and usage by other apps can exhaust it. No paid plan was enabled. Free quota exhaustion fails rather than selecting a paid model. Free Workers request/CPU quotas also apply. This is not guaranteed unlimited or exclusive capacity.
+
+The endpoint is public, **not authenticated**. An exact Prism-origin CORS check is only a browser constraint, not identity verification; non-browser clients can spoof Origin. A Cloudflare rate-limit binding targets four requests/minute per IP and four/minute for the shared pool at each Cloudflare location. These distributed counters are intentionally approximate and are not a worldwide hard daily quota. Abuse can still consume the free allowance. Request sizes are bounded to 24,000 bytes/20,000 content characters/40 messages, the model is fixed, output is capped at 512 tokens, and no arbitrary models, URLs, tools or paid fallbacks are exposed. Limits return actionable errors, never automatic retries. The Free plan's account quota is the final cost boundary.
+
+`cloudflare-worker.js` contains the deployed Worker implementation; `wrangler.jsonc` documents the non-secret bindings. These files are source, not browser credentials. D1/KV and unrelated bot integrations are not used. Deploying elsewhere requires the owner to set the authorized site origin and bindings, using Cloudflare’s supported deployment flow. The included binding namespace is this Worker’s account configuration, not a secret or an authorization token.

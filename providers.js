@@ -1,5 +1,6 @@
-import {verifyFreeConnection} from './free-models.js?v=free-models-1';
+import {verifyFreeConnection} from './free-models.js?v=cloudflare-free-1';
 export const PROVIDERS = {
+  cloudflare:{label:'Cloudflare · no key',base:'https://prism-free-ai.aethonlabs.workers.dev/v1',placeholder:'@cf/meta/llama-3.2-3b-instruct',format:'openai',keyless:true},
   openrouter:{label:'OpenRouter',base:'https://openrouter.ai/api/v1',placeholder:'provider/model-name',format:'openai'},
   groq:{label:'Groq',base:'https://api.groq.com/openai/v1',placeholder:'openai/gpt-oss-20b',format:'openai'},
   openai:{label:'OpenAI',base:'https://api.openai.com/v1',placeholder:'Your model ID',format:'openai'},
@@ -41,16 +42,19 @@ export async function requestReply(connection, system, messages, {signal,onChunk
     url=base+'/messages';headers['x-api-key']=connection.key;headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';
     body={model:connection.model,system,messages:chat,max_tokens:4096,temperature};
   } else {
-    url=base+'/chat/completions';headers.Authorization='Bearer '+connection.key;
+    url=base+'/chat/completions';if(!provider.keyless)headers.Authorization='Bearer '+connection.key;
+    if(provider.keyless&&(base!==provider.base||connection.model!==provider.placeholder))throw new Error('Use the built-in Cloudflare endpoint and Llama 3.2 3B model.');
     body={model:connection.model,messages:[{role:'system',content:system},...chat],stream:true};
     // Reasoning models may reject temperature; omit it for OpenAI and leave provider defaults.
     if(connection.provider!=='openai') {body.temperature=temperature;body.max_tokens=4096;}
     else body.max_completion_tokens=4096;
+    if(provider.keyless){body.stream=false;body.max_tokens=512;}
     if(connection.freeOnly)body.provider={max_price:{prompt:0,completion:0,request:0},allow_fallbacks:true};
   }
   let response;
   try{response=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});}catch(error){if(error.name==='AbortError')throw error;throw new Error('Could not reach '+new URL(base).hostname+'. Check the API base URL, your connection and whether this provider permits browser requests (CORS). No automatic retry was made.');}
   if(!response.ok) {
+    if(provider.keyless){const hints={400:'The free model rejected this context. Start a shorter conversation.',403:'Open Prism from its GitHub Pages link to use Cloudflare free AI.',413:'This chat context is too long for the shared free model. Start a new chat or shorten enabled memories and personalization.',429:'The shared free model is busy or rate-limited (four requests/minute). Wait a minute before retrying.',502:'Cloudflare returned no text. Try again later.',503:'Cloudflare free AI is unavailable or the account’s daily free quota is exhausted. No paid fallback is used. Try later.'};throw new Error(hints[response.status]||'Cloudflare returned HTTP '+response.status+'. No automatic retry was made.');}
     // Do not surface provider bodies: some compatible servers echo request credentials.
     const hints={400:'The provider rejected the model or request settings. Check the exact model ID and its chat API support.',401:'The API key was rejected. Edit this connection and check the key.',403:'This key does not have access to the requested model or endpoint.',404:'Model or endpoint not found. Check the model ID and API base URL.',429:'Rate limit or API credit limit reached. Check your provider account before retrying.'};
     throw new Error(hints[response.status]||'The provider returned HTTP '+response.status+'. No automatic retry was made.');

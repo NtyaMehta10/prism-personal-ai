@@ -1,5 +1,12 @@
 // Public catalog only: never receives an API key or personal context.
 export const FREE_PROVIDERS = {
+  cloudflare:{
+    label:'Cloudflare · no API key',
+    termsUrl:'https://developers.cloudflare.com/workers-ai/platform/pricing/',
+    note:'Llama 3.2 3B · no key required. Shared account allowance: 10,000 neurons/day across Workers AI; approximately four requests/minute per IP and shared pool (per Cloudflare location). 512-token replies. Capacity is limited; no paid fallback.',
+    setup:'No API key or provider signup needed. Sending sends your conversation, enabled memories, personalization and skill through Prism’s Cloudflare Worker to Workers AI. Your vault stays local; requests are processed by Cloudflare. Shared free capacity may run out.',
+    models:[{id:'@cf/meta/llama-3.2-3b-instruct',name:'Llama 3.2 3B · Cloudflare'}]
+  },
   openrouter: {
     label: 'OpenRouter', keyUrl: 'https://openrouter.ai/settings/keys',
     termsUrl: 'https://openrouter.ai/docs/api_reference/limits',
