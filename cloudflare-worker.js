@@ -1,5 +1,5 @@
 const ORIGIN = 'https://ntyamehta10.github.io';
-const MODELS = new Set(["@cf/meta/llama-3.2-3b-instruct", "@cf/meta/llama-3.2-1b-instruct", "@cf/qwen/qwen2.5-coder-32b-instruct", "@cf/qwen/qwen3-30b-a3b-fp8"]);
+const MODELS = new Set(["@cf/meta/llama-3.2-3b-instruct", "@cf/meta/llama-3.2-1b-instruct", "@cf/qwen/qwen2.5-coder-32b-instruct", "@cf/qwen/qwen3-30b-a3b-fp8", "@cf/nvidia/nemotron-3-120b-a12b", "@cf/qwen/qwen3.8-27b", "@cf/qwen/qwq-32b", "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"]);
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
@@ -36,10 +36,17 @@ export default {
       if (!messages.some(m=>m.role==='user')) return error('A user message is required.',400);
       const poolLimit = await env.PRISM_LIMITER.limit({key:'prism-shared-pool'});
       if (!poolLimit.success) return error('The shared free AI is busy. Try again in a minute.',429,{'Retry-After':'60'});
-      const result = await env.AI.run(input.model,{messages,max_tokens:512,temperature:Math.min(1,Math.max(0,Number(input.temperature)||0.7)),stream:false});
-      const text = typeof result.response === 'string' ? result.response : result.choices?.[0]?.message?.content;
+      const reasoningModels = new Set(['@cf/qwen/qwen3.8-27b','@cf/qwen/qwq-32b','@cf/deepseek-ai/deepseek-r1-distill-qwen-32b']);
+      const budget = reasoningModels.has(input.model) ? 1536 : 512;
+      const options = {messages,max_tokens:budget,temperature:Math.min(1,Math.max(0,Number(input.temperature)||0.7)),stream:false};
+      if(input.model==='@cf/nvidia/nemotron-3-120b-a12b') options.chat_template_kwargs={enable_thinking:false,force_nonempty_content:true};
+      if(input.model==='@cf/qwen/qwen3.8-27b'){delete options.max_tokens;options.max_completion_tokens=budget;options.reasoning_effort='low';}
+      const result = await env.AI.run(input.model,options);
+      let text = typeof result.response === 'string' ? result.response : result.choices?.[0]?.message?.content;
+      // Hidden thinking is not a final answer; don't show a thinking-only budget exhaustion as success.
+      if(typeof text==='string'){if(text.includes('</think>'))text=text.slice(text.lastIndexOf('</think>')+8).trim();if(text.includes('<think>'))text='';}
       if (typeof text !== 'string' || !text.trim()) return error('This model returned no final text within the reply limit. Try a shorter question or another Cloudflare model.',502);
-      return json({id:'prism-'+crypto.randomUUID(),object:'chat.completion',created:Math.floor(Date.now()/1000),model:input.model,choices:[{index:0,message:{role:'assistant',content:text},finish_reason:result.choices?.[0]?.finish_reason || ((result.usage?.completion_tokens || 0)>=512?'length':'stop')}]});
+      return json({id:'prism-'+crypto.randomUUID(),object:'chat.completion',created:Math.floor(Date.now()/1000),model:input.model,choices:[{index:0,message:{role:'assistant',content:text},finish_reason:result.choices?.[0]?.finish_reason || ((result.usage?.completion_tokens || 0)>=budget?'length':'stop')}]});
     } catch {
       return error('Cloudflare free AI is unavailable or its daily quota is exhausted. No paid fallback is used. Try later.',503);
     }

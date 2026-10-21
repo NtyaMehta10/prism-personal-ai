@@ -1,6 +1,6 @@
 import {STORAGE_KEY,deriveKey,encrypt,decrypt,validateEnvelope} from './vault.js';
-import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-models-2';
-import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-models-2';
+import {FREE_PROVIDERS,discoverFreeModels,verifyFreeConnection} from './free-models.js?v=cloudflare-models-3';
+import {PROVIDERS,safeBase,systemContext,requestReply} from './providers.js?v=cloudflare-models-3';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], uid=()=>crypto.randomUUID();
 let data=null,key=null,salt=null,activeId='',view='chat',busy=false,controller=null,epoch=0,lastActivity=Date.now(),saveQueue=Promise.resolve(),toastTimer,editorSave;
 const fresh=()=>({version:1,connections:[],chats:[],memories:[],skills:[],personality:{name:'',about:'',style:''},preferences:{memoryEnabled:true,readAloud:false,temperature:.7,connectionId:'',skillId:''}});

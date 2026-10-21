@@ -1,4 +1,4 @@
-import {verifyFreeConnection,FREE_PROVIDERS} from './free-models.js?v=cloudflare-models-2';
+import {verifyFreeConnection,FREE_PROVIDERS} from './free-models.js?v=cloudflare-models-3';
 export const PROVIDERS = {
   cloudflare:{label:'Cloudflare · no key',base:'https://prism-free-ai.aethonlabs.workers.dev/v1',placeholder:'@cf/meta/llama-3.2-3b-instruct',format:'openai',keyless:true},
   openrouter:{label:'OpenRouter',base:'https://openrouter.ai/api/v1',placeholder:'provider/model-name',format:'openai'},
@@ -48,7 +48,7 @@ export async function requestReply(connection, system, messages, {signal,onChunk
     // Reasoning models may reject temperature; omit it for OpenAI and leave provider defaults.
     if(connection.provider!=='openai') {body.temperature=temperature;body.max_tokens=4096;}
     else body.max_completion_tokens=4096;
-    if(provider.keyless){body.stream=false;body.max_tokens=512;}
+    if(provider.keyless){body.stream=false;body.max_tokens=FREE_PROVIDERS.cloudflare.models.find(m=>m.id===connection.model)?.budget||512;}
     if(connection.freeOnly)body.provider={max_price:{prompt:0,completion:0,request:0},allow_fallbacks:true};
   }
   let response;
